@@ -14,7 +14,7 @@ Performance: For batch of 30, render only on demand (user clicks preview for sel
 No degradation: same generator used.
 
 Requires optional: fluidsynth binary (brew install) + soundfont (auto-download small GM if missing).
-Fallback always works (uses wave + numpy for simple synth).
+Fallback always works if numpy is present (uses wave + numpy for simple synth); otherwise falls back gracefully to fluidsynth-only or reports.
 """
 
 from __future__ import annotations
@@ -27,7 +27,10 @@ import math
 from pathlib import Path
 from typing import Union, Optional
 
-import numpy as np  # for fallback synth (install if needed: pip install numpy)
+
+# Note: numpy import moved inside _render_fallback_synth (lazy) so the module loads
+# cleanly even when numpy is not installed. This matches the "optional" intent in requirements.txt.
+# Users get high-quality preview with `brew install fluidsynth` + a .sf2, or install numpy for the basic fallback.
 
 from .project import SongProject
 from .generate import generate_song
@@ -65,7 +68,7 @@ def _ensure_soundfont() -> Optional[Path]:
         except Exception as e:
             print(f"Soundfont download failed ({e}).")
     else:
-        print("No SF2_URL configured. For best preview quality: brew install fluidsynth && place a GM .sf2 at ~/.cache/aimidi/FluidR3_GM.sf2 (or update SF2_CACHE). Falling back to basic synth preview.")
+        print("No SF2_URL configured. For best preview quality: brew install fluidsynth && place a GM .sf2 at ~/.cache/aimidi/FluidR3_GM.sf2 (or update SF2_CACHE). Falling back to basic synth preview (requires numpy) or fluidsynth.")
     return None
 
 
@@ -90,10 +93,16 @@ def _render_with_fluidsynth(midi_path: Path, wav_path: Path, sf2: Path, fs: int 
 def _render_fallback_synth(midi_path: Path, wav_path: Path, fs: int = 44100, seconds_limit: float = 120.0) -> bool:
     """
     Very basic fallback: parse MIDI roughly and synthesize with sine/saw per track.
-    Low quality but always works and gives an "instant preview" idea of structure/timing.
+    Low quality but always works (if numpy present) and gives an "instant preview" idea of structure/timing.
     """
     try:
         import mido
+        try:
+            import numpy as np
+        except ImportError:
+            print("numpy not installed — preview will use fluidsynth only (or fail gracefully). pip install numpy for fallback synth.")
+            return False
+
         mid = mido.MidiFile(str(midi_path))
         # Very crude: collect note ons with approx timing
         events = []
@@ -154,7 +163,7 @@ def render_preview(
     """
     Render a full song preview to WAV.
     Returns path to WAV (or None on total failure).
-    Uses fluidsynth if possible for high quality; falls back to basic synth.
+    Uses fluidsynth if possible for high quality; falls back to basic synth (numpy) if available.
     """
     if isinstance(midi_or_project, (SongProject,)):
         # generate a temp midi from the project if it has no file
@@ -184,7 +193,7 @@ def render_preview(
         return output_wav
 
     if _render_fallback_synth(midi_path, output_wav, seconds_limit=seconds_limit):
-        print(f"Basic synth preview rendered (install fluidsynth for better quality): {output_wav}")
+        print(f"Basic synth preview rendered (install fluidsynth for better quality or numpy for fallback): {output_wav}")
         return output_wav
 
     print("Preview rendering failed.")

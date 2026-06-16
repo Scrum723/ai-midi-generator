@@ -13,9 +13,10 @@ pydantic>=2.0.0
 python-dotenv>=1.0.0
 keyring>=25.0.0       # secure key storage (macOS keychain etc.)
 
-# Audio preview (optional - requires system fluidsynth + sf2)
+# Audio preview (optional - requires system fluidsynth + sf2 for high quality)
 # pyfluidsynth
 # pyaudio  # or sounddevice
+numpy>=1.24  # recommended for fallback synth preview when no fluidsynth/sf2 (safe to omit; preview will still work via fluidsynth or report gracefully)
 
 # Dev / test (optional)
 # pytest
